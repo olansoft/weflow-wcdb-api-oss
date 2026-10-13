@@ -15,9 +15,8 @@
 | **Linux** | ARM64 (aarch64) | `libwcdb_api.so` | *(已静态全内置，无需外部库)* | `resources/wcdb/linux/arm64/` |
 
 > **重要说明：部署与运行时依赖**  
-> * **底层 WCDB 库来源**：本项目 `./deps` 目录下预置的 `libWCDB.dylib`、`WCDB.dll` 等依赖库均来自腾讯官方开源仓库 [Tencent/wcdb](https://github.com/Tencent/wcdb) 的 **`v2.1.15` 原生构建版本**。
+> * **WCDB 库来源**：本项目 `./deps` 目录下预置的 `libWCDB.dylib`、`WCDB.dll` 等依赖库均来自腾讯官方开源仓库 [Tencent/wcdb](https://github.com/Tencent/wcdb) 的 **`v2.1.15` 原生构建版本**。
 > * **部署要求**：在 macOS 和 Windows 上，运行 WeFlow 时**必须将 `./deps` 下对应的底层 WCDB 库一同复制到程序指定目录**（如上表所示），否则程序启动时加载 `wcdb_api` 会因缺少符号解析而报错。
-> * **SDL2 说明**：核心数据库与解密功能完全不依赖 SDL2，已彻底移除。
 
 ---
 
@@ -56,8 +55,34 @@ cmake --build build --config Release -j$(sysctl -n hw.ncpu)
   ```
   *(ARM64 请安装 `curl:arm64-windows` 与 `zstd:arm64-windows`)*
 
-#### 步骤 1：生成 MSVC 导入库 (`WCDB.lib`)
-由于 Windows MSVC 链接器在链接 `WCDB.dll` 时需要导入库 `.lib`，本项目 `./deps` 目录下已预置各架构从原版导出的 `WCDB.def` 文件。在 Visual Studio 开发者命令提示符 (Developer Command Prompt) 中执行一行命令即可生成：
+#### 步骤 1：生成 MSVC 导入库 (`WCDB.lib`) 与 DEF 提取工具使用
+Windows 下使用 MSVC 链接器链接第三方预编译 `WCDB.dll` 时，需要对应的导入库 `.lib`。
+
+##### 1.1 使用 `generate_win_import_def.py` 提取导出定义文件 (`.def`)
+本项目脚本 [`scripts/generate_win_import_def.py`](file:///Users/steven/Desktop/Weflow/lib/wcdb/wcdb-api-oss/scripts/generate_win_import_def.py) 可直接解析任何 PE32+ (DLL) 文件的导出表，自动提取全部导出函数名和序号（Ordinal）。
+
+> **提示**：本项目 `./deps/win32/x64/` 和 `./deps/win32/arm64/` 目录下**已预置提取好的 `WCDB.def` 文件**。若未来更换了其他版本的 `WCDB.dll` 或需要重新提取，可运行此工具：
+
+* **推荐命令 (使用 `uv`，自动配置依赖，无需污染系统 Python)**：
+  ```bash
+  # 提取 x64 WCDB.dll 导出表：
+  uv run --with pefile python scripts/generate_win_import_def.py deps/win32/x64/WCDB.dll
+
+  # 提取 ARM64 WCDB.dll 导出表：
+  uv run --with pefile python scripts/generate_win_import_def.py deps/win32/arm64/WCDB.dll
+  ```
+* **传统 `pip` 方式**：
+  ```bash
+  pip install pefile
+  python scripts/generate_win_import_def.py deps/win32/x64/WCDB.dll [可选自定义输出路径.def]
+  ```
+* **命令行参数说明**：
+  * 参数 1 (`input.dll`)：输入的 Windows DLL 文件路径（必选）。
+  * 参数 2 (`output.def`)：输出的 `.def` 路径（可选，省略时默认在 DLL 所在同级目录下输出同名 `.def`）。
+  * 支持 `--help` / `-h` 查看完整内置帮助与建议的 `lib.exe` 生成命令。
+
+##### 1.2 在 Visual Studio 开发者终端中生成 `.lib` 导入库
+在 Visual Studio 开发者命令提示符 (Developer Command Prompt) 中执行 MSVC `lib.exe` 工具：
 
 * **x64 架构**：
   ```cmd
