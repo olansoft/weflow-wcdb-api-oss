@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# Linux 一键构建全自包含 libwcdb_api.so 脚本 (Monolithic All-in-One Build)
+# Linux 构建 libwcdb_api.so（静态链接 WCDB，其他依赖以链接结果为准）
 # 支持 Ubuntu / Debian / CentOS / Arch Linux 等 x64 与 aarch64 环境
 # ==============================================================================
 
@@ -9,6 +9,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 DEPS_DIR="${ROOT_DIR}/third_party"
+WCDB_VERSION="v2.1.15"
 
 echo "=== [1/4] 检查系统环境与基础依赖 ==="
 if [ -f /etc/debian_version ]; then
@@ -25,13 +26,29 @@ cd "${DEPS_DIR}"
 echo "=== [2/4] 获取并编译腾讯开源 WCDB 静态库 ==="
 if [ ! -d "wcdb" ]; then
     echo "克隆 Tencent/wcdb 仓库..."
-    git clone --depth 1 https://github.com/Tencent/wcdb.git
+    git clone --branch "${WCDB_VERSION}" --depth 1 https://github.com/Tencent/wcdb.git
     cd wcdb
-    git submodule update --init --depth 1 sqlcipher zstd
 else
-    echo "WCDB 源码已存在，跳过克隆。"
+    echo "WCDB 源码已存在，检查版本。"
     cd wcdb
 fi
+
+WCDB_EXPECTED_COMMIT="$(git rev-parse --verify "refs/tags/${WCDB_VERSION}^{commit}" 2>/dev/null)" || {
+    echo "错误: 缓存源码缺少 ${WCDB_VERSION} 标签，无法确认版本。"
+    echo "请保留本地修改，将 ${DEPS_DIR}/wcdb 移到其他目录后重新运行。"
+    exit 1
+}
+if [ "$(git rev-parse HEAD)" != "${WCDB_EXPECTED_COMMIT}" ]; then
+    echo "错误: 缓存源码 HEAD 与 ${WCDB_VERSION} 不一致。"
+    echo "请保留本地修改并切换到 ${WCDB_VERSION}，或将 ${DEPS_DIR}/wcdb 移走后重试。"
+    exit 1
+fi
+if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+    echo "错误: WCDB 缓存存在已跟踪文件的本地修改，无法保证使用 ${WCDB_VERSION} 原始源码。"
+    echo "请保留修改并恢复干净源码后重试。"
+    exit 1
+fi
+git submodule update --init --depth 1 sqlcipher zstd
 
 echo "配置并编译 WCDB 静态库..."
 mkdir -p src/build_static
@@ -50,7 +67,7 @@ if [ -z "${WCDB_STATIC_LIB}" ] || [ ! -f "${WCDB_STATIC_LIB}" ]; then
 fi
 echo "成功构建 WCDB 静态库: ${WCDB_STATIC_LIB}"
 
-echo "=== [3/4] 编译全自包含 libwcdb_api.so ==="
+echo "=== [3/4] 编译 libwcdb_api.so（静态链接 WCDB） ==="
 cd "${ROOT_DIR}"
 mkdir -p build_linux
 cd build_linux
