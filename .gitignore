@@ -22,6 +22,7 @@ Thumbs.db
 *.swp
 *.bak
 *~
+artifacts/
 
 # Python cache (scripts)
 __pycache__/
