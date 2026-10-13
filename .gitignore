@@ -1,0 +1,29 @@
+# Build outputs
+build/
+build_*/
+bin/
+
+# Development reference documents excluded from OSS repo
+README_FOR_DEV.md
+
+# Intermediate third-party downloads during Linux build
+third_party/
+
+# System and editor files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.bak
+*~
+
+# Python cache (scripts)
+__pycache__/
+*.py[cod]
+*$py.class
